@@ -1,0 +1,75 @@
+// Prisma Schema for AI-Powered Tender & RFP Intelligence Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("Bid Manager") // Bid Manager, Evaluator, Admin
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tenders      Tender[]
+
+  @@map("users")
+}
+
+model Tender {
+  id           Int           @id @default(autoincrement())
+  title        String
+  uploadDate   DateTime      @default(now())
+  status       String        @default("Active") // Active, In Review, Submitted, Won, Lost
+  riskScore    Float         @default(0.0)      // Scale 0.0 - 5.0
+  documentUrl  String                           // Cloudinary link or local fallback
+  fileName     String?
+  fileSize     Int?
+  pageCount    Int?          @default(1)
+  summary      String?
+  estimatedValue String?
+  buyer        String?
+  userId       Int?
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requirements Requirement[]
+  tasks        Task[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("tenders")
+}
+
+model Requirement {
+  id        Int      @id @default(autoincrement())
+  tenderId  Int
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  clause    String
+  type      String   // Eligibility, Deadline, Compliance
+  status    String   @default("Pending") // Compliant, Attention, Critical, Pending
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("requirements")
+}
+
+model Task {
+  id         Int       @id @default(autoincrement())
+  tenderId   Int?
+  tender     Tender?   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  title      String
+  assignedTo String
+  dueDate    DateTime
+  status     String    @default("Pending") // Pending, In Progress, Completed
+  priority   String    @default("Medium")  // High, Medium, Low
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("tasks")
+}
