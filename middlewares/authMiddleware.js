@@ -41,23 +41,4 @@ export async function authenticateToken(req, res, next) {
   }
 }
 
-// Optional auth for public preview or prototype testing
-export async function optionalAuth(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, config.jwt.secret);
-      const user = await db.findUserByEmail(decoded.email);
-      if (user) {
-        req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
-      }
-    } catch (e) {
-      // ignore token parse error for optional
-    }
-  }
-  next();
-}
-
-export default { authenticateToken, optionalAuth };
+export default { authenticateToken };

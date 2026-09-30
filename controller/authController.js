@@ -105,11 +105,4 @@ export async function login(req, res, next) {
   }
 }
 
-export async function getMe(req, res) {
-  return res.json({
-    success: true,
-    user: req.user,
-  });
-}
-
-export default { register, login, getMe };
+export default { register, login };
