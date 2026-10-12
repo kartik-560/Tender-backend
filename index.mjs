@@ -29,6 +29,18 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health & Root status endpoints
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Tender & RFP Intelligence API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      docs: '/api'
+    }
+  });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Tender & RFP Intelligence API' });
 });

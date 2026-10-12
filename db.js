@@ -3,15 +3,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-let prisma;
+const globalForPrisma = globalThis;
+
+let prisma = globalForPrisma.prisma;
 let isPrismaConnected = false;
 
-try {
-  prisma = new PrismaClient({
-    log: [],
-  });
-} catch (error) {
-  // Standalone prototype mode
+if (!prisma) {
+  try {
+    prisma = new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    });
+    if (process.env.NODE_ENV !== 'production') {
+      globalForPrisma.prisma = prisma;
+    }
+  } catch (error) {
+    console.error('❌ [Prisma Initialization Error]:', error.message);
+  }
 }
 
 // In-memory fallback store for zero-friction standalone execution
@@ -28,7 +35,12 @@ class InMemoryDb {
   }
 
   async checkConnection() {
-    if (!prisma) return false;
+    if (!prisma) {
+      if (process.env.DATABASE_URL) {
+        console.error('❌ Prisma Client is not initialized despite DATABASE_URL being set.');
+      }
+      return false;
+    }
     try {
       await prisma.$connect();
       isPrismaConnected = true;
@@ -52,24 +64,37 @@ class InMemoryDb {
         isPrismaConnected = true;
         return user;
       } catch (e) {
-        console.error('❌ Database error in findUserByEmail:', e.message);
-        if (process.env.DATABASE_URL) throw e;
+        console.error('❌ [Database Error] findUserByEmail failed:', e.message);
+        if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') throw e;
       }
     }
+
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
+      throw new Error('Database is configured or in production, but Prisma Client is not available.');
+    }
+
     return this.users.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
   }
 
   async createUser(userData) {
     if (prisma && (isPrismaConnected || process.env.DATABASE_URL)) {
       try {
+        console.log(`[Database Operation] Writing user to PostgreSQL: ${userData.email}`);
         const user = await prisma.user.create({ data: userData });
         isPrismaConnected = true;
+        console.log(`✅ [Database Operation] User written to PostgreSQL with ID: ${user.id}`);
         return user;
       } catch (e) {
-        console.error('❌ Database error in createUser:', e.message);
-        if (process.env.DATABASE_URL) throw e;
+        console.error('❌ [Database Error] createUser failed:', e.message);
+        if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') throw e;
       }
     }
+
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
+      throw new Error('Database is configured or in production, but Prisma Client is not available. Cannot persist user.');
+    }
+
+    console.warn(`⚠️ [Standalone Memory Mode] Saving user to temporary memory array (RAM only).`);
     const user = {
       id: this.userSeq++,
       ...userData,

@@ -4,18 +4,24 @@ import config from '../config/index.js';
 import db from '../db.js';
 
 export async function register(req, res, next) {
+  const correlationId = Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6);
   try {
     const { name, email, password, role } = req.body;
 
     if (!name || !email || !password) {
+      console.warn(`⚠️ [Register:${correlationId}] Validation failed: missing required fields`);
       return res.status(400).json({
         success: false,
         message: 'Name, email, and password are required fields.',
       });
     }
 
-    const existingUser = await db.findUserByEmail(email);
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`📡 [Register:${correlationId}] Starting registration for: ${normalizedEmail}`);
+
+    const existingUser = await db.findUserByEmail(normalizedEmail);
     if (existingUser) {
+      console.warn(`⚠️ [Register:${correlationId}] Conflict: user already exists for ${normalizedEmail}`);
       return res.status(409).json({
         success: false,
         message: 'An account with this email address already exists.',
@@ -25,12 +31,15 @@ export async function register(req, res, next) {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    console.log(`💾 [Register:${correlationId}] Persisting user to database...`);
     const newUser = await db.createUser({
       name,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       passwordHash,
       role: role || 'Bid Manager',
     });
+
+    console.log(`✅ [Register:${correlationId}] User persisted successfully in database. ID: ${newUser.id}`);
 
     const token = jwt.sign(
       { id: newUser.id, email: newUser.email, role: newUser.role },
@@ -50,6 +59,7 @@ export async function register(req, res, next) {
       },
     });
   } catch (error) {
+    console.error(`❌ [Register:${correlationId}] Unhandled registration error:`, error.message);
     next(error);
   }
 }
