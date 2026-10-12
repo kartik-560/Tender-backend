@@ -36,26 +36,39 @@ class InMemoryDb {
       return true;
     } catch (err) {
       isPrismaConnected = false;
-      console.log('ℹ️  PostgreSQL not connected. Operating with clean in-memory database.');
+      console.error('❌ PostgreSQL connection failed via Prisma:', err.message);
+      if (!process.env.DATABASE_URL) {
+        console.log('ℹ️  No DATABASE_URL configured. Operating with clean in-memory database.');
+      }
       return false;
     }
   }
 
   // Users
   async findUserByEmail(email) {
-    if (isPrismaConnected) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL)) {
       try {
-        return await prisma.user.findUnique({ where: { email } });
-      } catch (e) { /* fallback */ }
+        const user = await prisma.user.findUnique({ where: { email } });
+        isPrismaConnected = true;
+        return user;
+      } catch (e) {
+        console.error('❌ Database error in findUserByEmail:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     return this.users.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
   }
 
   async createUser(userData) {
-    if (isPrismaConnected) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL)) {
       try {
-        return await prisma.user.create({ data: userData });
-      } catch (e) { /* fallback */ }
+        const user = await prisma.user.create({ data: userData });
+        isPrismaConnected = true;
+        return user;
+      } catch (e) {
+        console.error('❌ Database error in createUser:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     const user = {
       id: this.userSeq++,
@@ -69,26 +82,36 @@ class InMemoryDb {
 
   // Tenders
   async getAllTenders() {
-    if (isPrismaConnected) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL)) {
       try {
-        return await prisma.tender.findMany({
+        const tenders = await prisma.tender.findMany({
           include: { requirements: true, tasks: true },
           orderBy: { uploadDate: 'desc' }
         });
-      } catch (e) { /* fallback */ }
+        isPrismaConnected = true;
+        return tenders;
+      } catch (e) {
+        console.error('❌ Database error in getAllTenders:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     return this.tenders;
   }
 
   async getTenderById(id) {
     const numId = typeof id === 'number' ? id : parseInt(id, 10);
-    if (isPrismaConnected && !isNaN(numId)) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL) && !isNaN(numId)) {
       try {
-        return await prisma.tender.findUnique({
+        const tender = await prisma.tender.findUnique({
           where: { id: numId },
           include: { requirements: true, tasks: true }
         });
-      } catch (e) { /* fallback */ }
+        isPrismaConnected = true;
+        return tender;
+      } catch (e) {
+        console.error('❌ Database error in getTenderById:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     return this.tenders.find(t => t.id === numId || String(t.id) === String(id)) || null;
   }
@@ -99,9 +122,9 @@ class InMemoryDb {
       userId: tenderData.userId != null && !isNaN(parseInt(tenderData.userId, 10)) ? parseInt(tenderData.userId, 10) : null,
     };
 
-    if (isPrismaConnected) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL)) {
       try {
-        return await prisma.tender.create({
+        const tender = await prisma.tender.create({
           data: {
             ...sanitizedTenderData,
             requirements: { create: requirements },
@@ -109,7 +132,12 @@ class InMemoryDb {
           },
           include: { requirements: true, tasks: true }
         });
-      } catch (e) { /* fallback */ }
+        isPrismaConnected = true;
+        return tender;
+      } catch (e) {
+        console.error('❌ Database error in createTender:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     const newTender = {
       id: this.tenderSeq++,
@@ -132,10 +160,15 @@ class InMemoryDb {
 
   async deleteTender(id) {
     const numId = typeof id === 'number' ? id : parseInt(id, 10);
-    if (isPrismaConnected && !isNaN(numId)) {
+    if (prisma && (isPrismaConnected || process.env.DATABASE_URL) && !isNaN(numId)) {
       try {
-        return await prisma.tender.delete({ where: { id: numId } });
-      } catch (e) { /* fallback */ }
+        const tender = await prisma.tender.delete({ where: { id: numId } });
+        isPrismaConnected = true;
+        return tender;
+      } catch (e) {
+        console.error('❌ Database error in deleteTender:', e.message);
+        if (process.env.DATABASE_URL) throw e;
+      }
     }
     const idx = this.tenders.findIndex(t => t.id === numId || String(t.id) === String(id));
     if (idx !== -1) {
